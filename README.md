@@ -363,11 +363,3 @@ interesting on top, I'd love to hear about it.
   architecture
 
 ---
-
-## Contact
-
-Mika Féré — [LinkedIn](https://linkedin.com/in/YOURLINKEDIN)
-Senior Data Scientist, Aix-en-Provence (13)
-
-Open to discussing this project, contributing thoughts, or talking
-about positions in industrial Deep Tech.
