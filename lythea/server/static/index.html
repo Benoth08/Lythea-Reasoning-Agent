@@ -1,0 +1,476 @@
+<!DOCTYPE html>
+<html lang="fr" data-theme="dark">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Taëlys — Lythéa V6.0.0-rc rev9</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,300;9..144,400&family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/static/style.css">
+  <link href="/static/vendor/github-dark.min.css" rel="stylesheet">
+  <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+  <script src="/static/vendor/highlight.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/dayjs@1/dayjs.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/dayjs@1/plugin/relativeTime.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/dayjs@1/locale/fr.js"></script>
+</head>
+<body>
+  <!-- Boot splash screen (shown until /api/boot/status returns ready=true) -->
+  <div id="boot-splash" class="boot-splash">
+    <div class="boot-splash-inner">
+      <!-- Logo Taëlys (V4.4). WebP optimisé (~43K) avec fallback PNG
+           pour les vieux navigateurs qui ne supporteraient pas WebP. -->
+      <picture class="boot-logo">
+        <source srcset="/static/img/taelys_logo.webp" type="image/webp">
+        <img src="/static/img/taelys_logo.png" alt="Taëlys — Cognitive AI Architecture">
+      </picture>
+      <h1 class="boot-title">Taëlys</h1>
+      <p class="boot-subtitle">Préparation de la conscience…</p>
+      <div class="boot-progress">
+        <div id="boot-progress-fill" class="boot-progress-fill"></div>
+      </div>
+      <div id="boot-step" class="boot-step">Initialisation…</div>
+      <ul id="boot-stages" class="boot-stages"></ul>
+      <div id="boot-elapsed" class="boot-elapsed"></div>
+    </div>
+  </div>
+
+  <!-- Sidebar -->
+  <aside id="sidebar" class="sidebar">
+    <!-- V5.6 — Header toujours visible (logo + new chat + delete all). -->
+    <div class="sidebar-fixed-top">
+      <div class="sidebar-brand">
+        <picture class="sidebar-logo">
+          <source srcset="/static/img/taelys_logo.webp" type="image/webp">
+          <img src="/static/img/taelys_logo.png" alt="Taëlys">
+        </picture>
+        <div class="sidebar-brand-text">
+          <div class="sidebar-brand-name">Taëlys</div>
+          <div class="sidebar-brand-version" id="version-badge" title="Santé mémoire (clic)" style="cursor:pointer">
+            <span class="alive-dot"></span>
+            <span class="version-text">Lythéa V6.0.0-rc rev9</span>
+          </div>
+        </div>
+      </div>
+      <div class="sidebar-header">
+        <button id="btn-new-chat" class="btn-new-chat" title="Nouveau chat (Ctrl+N)" data-tooltip="Nouveau chat">
+          <span class="icon">+</span> <span class="btn-label">Nouveau chat</span>
+        </button>
+        <button id="btn-delete-all" class="btn-icon btn-delete-all" title="Supprimer toutes les conversations" data-tooltip="Supprimer">
+          🗑️
+        </button>
+      </div>
+    </div>
+    <!-- V5.6 — Zone pliable : recherche + liste des sessions. -->
+    <div class="sidebar-collapsible">
+      <div class="sidebar-search">
+        <input type="text" id="search-sessions" placeholder="Rechercher…" autocomplete="off">
+      </div>
+      <div id="session-list" class="session-list"></div>
+    </div>
+    <!-- V5.6 — Footer toujours visible + bouton de pliage. -->
+    <div class="sidebar-footer">
+      <button id="btn-settings" class="btn-icon" title="Paramètres" data-tooltip="Paramètres">⚙️</button>
+      <button id="btn-collapse" class="btn-icon btn-collapse" title="Replier les sessions" data-tooltip="Déplier les sessions">«</button>
+    </div>
+  </aside>
+
+  <!-- Sidebar toggle (mobile) -->
+  <button id="sidebar-toggle" class="sidebar-toggle">☰</button>
+
+  <!-- Main -->
+  <main id="main" class="main">
+    <!-- Top bar -->
+    <header id="topbar" class="topbar">
+      <span id="model-label" class="model-label">Aucun modèle</span>
+      <div class="topbar-actions">
+        <!-- V4.4 — SVG inline cohérents avec la charte (mêmes couleurs
+             que les pills de phase). Chaque bouton a une classe
+             btn-ico-* qui pilote la couleur de l'icône. L'attribut
+             title reste pour les tooltips. -->
+        <button id="btn-reasoning" class="btn-sm btn-toggle btn-ico btn-ico-reasoning hidden" title="Raisonnement : passe analytique (chat) + réflexion approfondie de l'agent quand il bloque. La Pensée de l'agent reste toujours active.">
+          <svg class="btn-svg" viewBox="0 0 40 40" aria-hidden="true">
+            <circle class="t-arc-outer" cx="20" cy="20" r="16"/>
+            <circle class="t-arc-inner" cx="20" cy="20" r="10"/>
+            <text class="t-letter" x="20" y="26" text-anchor="middle" font-size="16" font-weight="700">T</text>
+          </svg>
+          <span>Raisonnement</span>
+        </button>
+        <button id="btn-debug" class="btn-sm btn-toggle btn-ico btn-ico-debug" title="Mode debug">
+          <svg class="btn-svg" viewBox="0 0 40 40" aria-hidden="true">
+            <!-- Microscope stylisé : barre verticale + oculaire + base -->
+            <line class="dbg-tube" x1="22" y1="8" x2="22" y2="22" stroke-width="3" stroke-linecap="round"/>
+            <circle class="dbg-lens" cx="22" cy="24" r="4" stroke-width="2.2" fill="none"/>
+            <line class="dbg-arm" x1="14" y1="14" x2="22" y2="14" stroke-width="2" stroke-linecap="round"/>
+            <line class="dbg-base" x1="13" y1="33" x2="29" y2="33" stroke-width="2.4" stroke-linecap="round"/>
+            <line class="dbg-stem" x1="22" y1="28" x2="22" y2="33" stroke-width="2" stroke-linecap="round"/>
+          </svg>
+          <span>Debug</span>
+        </button>
+        <button id="btn-unload" class="btn-sm btn-ico btn-ico-unload hidden" title="Décharger le modèle">
+          <svg class="btn-svg" viewBox="0 0 40 40" aria-hidden="true">
+            <!-- Eject : triangle + barre dessous -->
+            <polygon class="ej-triangle" points="20,8 30,22 10,22" />
+            <rect class="ej-bar" x="10" y="26" width="20" height="4" rx="1.5"/>
+          </svg>
+          <span>Décharger</span>
+        </button>
+        <button id="btn-memory" class="btn-sm btn-ico btn-ico-memory" title="Mémoire">
+          <svg class="btn-svg" viewBox="0 0 40 40" aria-hidden="true">
+            <!-- Graph M2 : nœuds reliés -->
+            <line class="mem-edge" x1="10" y1="12" x2="20" y2="20"/>
+            <line class="mem-edge" x1="30" y1="12" x2="20" y2="20"/>
+            <line class="mem-edge" x1="10" y1="30" x2="20" y2="20"/>
+            <line class="mem-edge" x1="30" y1="30" x2="20" y2="20"/>
+            <circle class="mem-node" cx="10" cy="12" r="2.5"/>
+            <circle class="mem-node" cx="30" cy="12" r="2.5"/>
+            <circle class="mem-node" cx="10" cy="30" r="2.5"/>
+            <circle class="mem-node" cx="30" cy="30" r="2.5"/>
+            <circle class="mem-node" cx="20" cy="20" r="3"/>
+          </svg>
+        </button>
+        <button id="btn-deep-sleep" class="btn-sm btn-ico btn-ico-sleep" title="Sommeil profond">
+          <svg class="btn-svg" viewBox="0 0 40 40" aria-hidden="true">
+            <!-- Croissant de lune -->
+            <path class="moon" d="M 28 10 A 12 12 0 1 0 28 30 A 9 9 0 1 1 28 10 Z"/>
+          </svg>
+        </button>
+      </div>
+    </header>
+
+    <!-- Messages -->
+    <div id="messages" class="messages">
+      <div id="welcome" class="welcome">
+        <!-- V4.4 — logo Taëlys remplace le titre + sous-titre.
+             Réutilise les mêmes fichiers que le boot splash pour la
+             cohérence visuelle.
+             V5.6 — combo heartbeat + halo pulsant + greeting reveal blur. -->
+        <picture class="welcome-logo">
+          <source srcset="/static/img/taelys_logo.webp" type="image/webp">
+          <img src="/static/img/taelys_logo.png" alt="Taëlys — Cognitive AI Architecture">
+        </picture>
+        <h2 class="welcome-greeting">À l'<em>écoute</em>.</h2>
+        <p class="welcome-sub" id="welcome-question">De quoi parle-t-on aujourd'hui ?</p>
+        <p class="hint hint-model-needed" style="display:none">Charge un modèle via ⚙️ pour commencer</p>
+      </div>
+    </div>
+
+    <!-- Input area -->
+    <div class="input-area">
+      <div id="image-previews" class="image-previews"></div>
+      <div class="input-row">
+        <button type="button" class="btn-attach" id="btn-attach" title="Joindre une image ou un document (PDF, txt, md, docx, csv, json…) à ton message">📎</button>
+        <input type="file" id="file-input" accept="image/*,.pdf,.txt,.md,.markdown,.docx,.rst,.html,.htm,.csv,.json,.xml" multiple hidden>
+        <textarea id="chat-input" placeholder="Envoie un message à Taëlys…" rows="1"></textarea>
+        <button id="btn-agent" class="btn-agent" title="Mode agent (tâche multi-étapes)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><path d="M8 7.5h8M12 7.5v9"/><path d="M5.5 8.2a8 8 0 0 1 13 0" opacity=".75"/><path d="M18.5 15.8a8 8 0 0 1-13 0" opacity=".75"/></svg></button>
+        <button id="btn-send" class="btn-send" title="Envoyer">↑</button>
+        <button id="btn-stop" class="btn-stop hidden" title="Stop">■</button>
+      </div>
+    </div>
+  </main>
+
+  <!-- V6.0.0-rc rev9 — Workspace sidebar (right) ───────────────────────
+       Espace partagé Lythéa ↔ utilisateur. Drag-and-drop pour
+       uploader, arbre des fichiers, clic droit pour télécharger/
+       renommer/supprimer. Lythéa lit/écrit dans le même dossier
+       via le filesystem MCP. Repliable via le bouton chevron. -->
+  <aside id="workspace-sidebar" class="workspace-sidebar">
+    <div class="workspace-header">
+      <div class="ws-rail">
+        <button class="ws-tab on" data-view="ws"><span class="ic">📁</span> Workspace</button>
+        <button class="ws-tab" data-view="tasks"><span class="ic">◴</span> Tâches <span id="tasks-badge" class="ws-badge hidden">0</span></button>
+      </div>
+      <div class="workspace-actions">
+        <button id="btn-react-toggle" class="btn-icon on" title="Mode ReAct (agent autonome) — activé" data-tooltip="ReAct">⚡</button>
+        <button id="btn-tasks-clear" class="btn-icon hidden" title="Vider les tâches" data-tooltip="Vider">🗑</button>
+        <button id="btn-workspace-upload" class="btn-icon" title="Uploader un fichier" data-tooltip="Uploader">＋</button>
+        <button id="btn-workspace-refresh" class="btn-icon" title="Rafraîchir" data-tooltip="Rafraîchir">↻</button>
+        <button id="btn-workspace-collapse" class="btn-icon" title="Replier" data-tooltip="Replier">»</button>
+      </div>
+    </div>
+
+    <!-- Vue WORKSPACE : arbre de fichiers + quota -->
+    <div id="ws-view">
+      <input type="file" id="workspace-file-input" multiple style="display:none">
+      <div id="workspace-drop-overlay" class="workspace-drop-overlay">
+        <div class="workspace-drop-message">
+          <span class="workspace-drop-icon">📥</span>
+          <span>Lâcher ici pour uploader</span>
+        </div>
+      </div>
+      <div id="workspace-tree" class="workspace-tree">
+        <div class="workspace-empty">Chargement…</div>
+      </div>
+      <div class="workspace-footer">
+        <div class="workspace-quota">
+          <div class="workspace-quota-bar">
+            <div id="workspace-quota-fill" class="workspace-quota-fill"></div>
+          </div>
+          <div id="workspace-quota-text" class="workspace-quota-text">— / — MB</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Vue TÂCHES : missions de l'agent (en cours + récentes) -->
+    <div id="tasks-view" class="hidden">
+      <div id="tasks-list" class="tasks-list"></div>
+      <div id="tasks-empty" class="workspace-empty">Aucune mission pour l'instant.<br>Active le mode Agent dans le composer pour en lancer une.</div>
+    </div>
+    <!-- Context menu (shown on right-click on a file). -->
+    <div id="workspace-context-menu" class="workspace-context-menu hidden">
+      <button data-action="download">📥 Télécharger</button>
+      <button data-action="ingest">🧠 Ingérer en mémoire</button>
+      <button data-action="rename">✏️ Renommer</button>
+      <button data-action="delete" class="workspace-context-danger">🗑️ Supprimer</button>
+    </div>
+  </aside>
+
+  <!-- Toggle bouton (visible quand workspace replié, à droite de l'écran) -->
+  <button id="workspace-toggle" class="workspace-toggle hidden" title="Ouvrir le workspace">📁</button>
+
+
+  <!-- Settings modal -->
+  <div id="modal-overlay" class="modal-overlay hidden">
+    <div class="modal">
+      <div class="modal-header">
+        <h2>Paramètres</h2>
+        <button id="modal-close" class="btn-icon">✕</button>
+      </div>
+      <div class="modal-tabs">
+        <button class="tab active" data-tab="tab-model">Modèle</button>
+        <button class="tab" data-tab="tab-vision">Vision</button>
+        <button class="tab" data-tab="tab-memory">Mémoire</button>
+        <button class="tab" data-tab="tab-web">Web</button>
+        <button class="tab" data-tab="tab-generation">Génération</button>
+        <button class="tab" data-tab="tab-v4">Cognition</button>
+        <button class="tab" data-tab="tab-system">Système</button>
+      </div>
+      <div class="modal-body">
+        <div id="tab-model" class="tab-content active">
+          <div id="model-list" class="model-list"></div>
+          <div id="load-progress" class="load-progress hidden">
+            <div class="progress-bar"><div id="progress-fill" class="progress-fill"></div></div>
+            <span id="progress-text">Chargement…</span>
+          </div>
+        </div>
+        <div id="tab-vision" class="tab-content">
+          <!-- V5.6.15 — Banner affiché si modèle multimodal natif chargé.
+               Quand visible, masque la liste des captionneurs (inutiles). -->
+          <div id="native-multimodal-banner" class="hidden" style="padding:12px;border-radius:8px;background:linear-gradient(135deg, rgba(74,109,255,0.12), rgba(255,74,133,0.10));border:1px solid rgba(74,109,255,0.3);margin-bottom:12px;">
+            <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px;">
+              <span style="font-size:18px;">🎨</span>
+              <strong style="font-size:14px;">Vision native activée</strong>
+            </div>
+            <p style="font-size:12px;color:var(--text-muted);margin:0;line-height:1.4;">
+              Le modèle chargé (<span id="native-mm-model-name">—</span>) traite les images directement, sans captionneur intermédiaire. Plus rapide et plus précis.
+            </p>
+          </div>
+          <p id="captioner-intro" style="font-size:13px;color:var(--text-muted);margin:0 0 12px">Captionneur d'images pour les LLM texte.</p>
+          <div id="captioner-list" class="model-list"></div>
+          <div id="captioner-status" style="font-size:13px;color:var(--text-muted);margin-top:8px"></div>
+        </div>
+        <div id="tab-memory" class="tab-content">
+          <div id="memory-info" class="memory-info"></div>
+          <h3>Entités connues</h3>
+          <div id="kg-entities" class="kg-entities"></div>
+        </div>
+        <div id="tab-web" class="tab-content">
+          <label>Mode recherche web</label>
+          <select id="web-mode"><option value="off">Désactivé</option><option value="auto" selected>Auto</option><option value="always">Toujours</option></select>
+          <button id="btn-save-web" class="btn-primary">Sauver</button>
+
+          <hr style="border:none;border-top:1px solid var(--border);margin:20px 0">
+
+          <label style="display:flex;align-items:center;gap:10px;cursor:pointer">
+            <input type="checkbox" id="cascade-toggle" style="width:auto">
+            <span>🌀 Cascade Gemini (draft → synth locale)</span>
+          </label>
+          <p id="cascade-status" style="font-size:12px;color:var(--text-muted);margin:6px 0 0 24px">
+            <span id="cascade-status-text">État inconnu</span>
+          </p>
+          <div style="margin:8px 0 0 24px;display:flex;gap:6px;align-items:center;max-width:440px">
+            <input type="password" id="cascade-key-input"
+                   placeholder="Clé Google AI Studio (AIzaSy…)"
+                   autocomplete="off" spellcheck="false"
+                   style="flex:1;font-size:12px;padding:5px 8px;border:1px solid var(--border,#ccc);border-radius:6px;background:var(--bg-input,#fff);color:var(--text,#111)">
+            <button id="cascade-key-save" type="button"
+                    style="font-size:12px;padding:5px 10px;border:1px solid var(--border,#ccc);border-radius:6px;cursor:pointer;background:var(--bg-elev,#f3f3f3);color:var(--text,#111)">Enregistrer</button>
+          </div>
+          <p style="font-size:11px;color:var(--text-muted);margin:4px 0 0 24px">
+            Stockée en mémoire (jamais sur disque), perdue au redémarrage. Pour la rendre permanente : <code>GOOGLE_API_KEY</code> dans <code>.env</code>. Laisser vide + Enregistrer pour revenir au <code>.env</code>.
+          </p>
+        </div>
+        <div id="tab-generation" class="tab-content">
+          <p id="sampling-source" style="font-size:13px;color:var(--text-muted);margin:4px 0 12px">
+            Profil par défaut
+          </p>
+
+          <label>Température <span style="font-size:12px;color:var(--text-muted)">(créativité)</span></label>
+          <input type="range" id="sampling-temperature" min="0.0" max="2.0" step="0.05" value="0.7">
+          <span id="sampling-temperature-val">0.70</span>
+
+          <label style="margin-top:12px;display:block">Top-p <span style="font-size:12px;color:var(--text-muted)">(nucleus sampling — 1.0 = désactivé)</span></label>
+          <input type="range" id="sampling-top-p" min="0.0" max="1.0" step="0.05" value="0.9">
+          <span id="sampling-top-p-val">0.90</span>
+
+          <label style="margin-top:12px;display:block">Top-k <span style="font-size:12px;color:var(--text-muted)">(0 = désactivé)</span></label>
+          <input type="range" id="sampling-top-k" min="0" max="200" step="1" value="0">
+          <span id="sampling-top-k-val">0</span>
+
+          <label style="margin-top:12px;display:block">Min-p <span style="font-size:12px;color:var(--text-muted)">(LFM2 uniquement — 0 = désactivé)</span></label>
+          <input type="range" id="sampling-min-p" min="0.0" max="0.5" step="0.01" value="0">
+          <span id="sampling-min-p-val">0.00</span>
+
+          <label style="margin-top:12px;display:block">Pénalité de répétition</label>
+          <input type="range" id="sampling-rep-penalty" min="1.0" max="2.0" step="0.05" value="1.0">
+          <span id="sampling-rep-penalty-val">1.00</span>
+
+          <label style="margin-top:12px;display:block">Tokens max par réponse</label>
+          <input type="number" id="sampling-max-tokens" min="64" max="8192" step="64" value="1024" style="width:100px">
+
+          <div style="margin-top:16px">
+            <button id="btn-save-sampling" class="btn-primary">Appliquer</button>
+            <button id="btn-reset-sampling" class="btn-primary" style="background:var(--bg-muted);color:var(--text-muted);margin-left:8px" title="Recharge le profil recommandé du modèle actif">↺ Profil recommandé</button>
+          </div>
+          <p style="font-size:12px;color:var(--text-muted);margin-top:12px;line-height:1.5">
+            Les paramètres recommandés s'appliquent automatiquement au chargement d'un modèle.<br>
+            Les overrides sont perdus à chaque changement de modèle.
+          </p>
+        </div>
+        <div id="tab-v4" class="tab-content">
+          <p style="font-size:13px;color:var(--text-muted);margin:0 0 16px;line-height:1.5">
+            Modules cognitifs V4 (opt-in). Tous OFF par défaut → comportement V3.9.4 inchangé.<br>
+            <strong>Toggle runtime</strong> : la modification s'applique immédiatement, sans redémarrer.
+            Les variables d'environnement <code>LYTHEA_ENABLE_*</code> reprennent au prochain boot.
+          </p>
+
+          <div id="v4-modules" style="display:flex;flex-direction:column;gap:14px">
+            <!-- Each module row: switch + name + diagnostic -->
+            <div class="v4-module" data-module="cognitive_state">
+              <label style="display:flex;align-items:center;gap:10px;cursor:pointer">
+                <input type="checkbox" class="v4-toggle" data-module="cognitive_state" style="width:auto">
+                <span><strong>🧠 Cognitive state</strong> — théorie de l'esprit + état affectif</span>
+              </label>
+              <p class="v4-diag" data-module="cognitive_state" style="font-size:12px;color:var(--text-muted);margin:6px 0 0 24px">—</p>
+            </div>
+
+            <div class="v4-module" data-module="inhibition">
+              <label style="display:flex;align-items:center;gap:10px;cursor:pointer">
+                <input type="checkbox" class="v4-toggle" data-module="inhibition" style="width:auto">
+                <span><strong>🛑 Inhibition</strong> — filtre cascade 3 niveaux (clés API, prompt injection, KG)</span>
+              </label>
+              <p class="v4-diag" data-module="inhibition" style="font-size:12px;color:var(--text-muted);margin:6px 0 0 24px">—</p>
+            </div>
+
+            <div class="v4-module" data-module="planning">
+              <label style="display:flex;align-items:center;gap:10px;cursor:pointer">
+                <input type="checkbox" class="v4-toggle" data-module="planning" style="width:auto">
+                <span><strong>🎯 Planning</strong> — intention + pile de buts + décomposition</span>
+              </label>
+              <p class="v4-diag" data-module="planning" style="font-size:12px;color:var(--text-muted);margin:6px 0 0 24px">—</p>
+            </div>
+
+            <div class="v4-module" data-module="predictive_coding">
+              <label style="display:flex;align-items:center;gap:10px;cursor:pointer">
+                <input type="checkbox" class="v4-toggle" data-module="predictive_coding" style="width:auto">
+                <span><strong>🔮 Predictive coding</strong> — surprise corticale (Friston-style)</span>
+              </label>
+              <p class="v4-diag" data-module="predictive_coding" style="font-size:12px;color:var(--text-muted);margin:6px 0 0 24px">—</p>
+              <label style="display:flex;align-items:center;gap:10px;cursor:pointer;margin:8px 0 0 24px;font-size:13px">
+                <input type="checkbox" class="v4-toggle" data-module="predictive_coding_apply_gating" style="width:auto">
+                <span style="color:var(--text-muted)">Appliquer le gating (suppression web search en low-power)</span>
+              </label>
+            </div>
+
+            <div class="v4-module" data-module="timeline">
+              <label style="display:flex;align-items:center;gap:10px;cursor:pointer">
+                <input type="checkbox" class="v4-toggle" data-module="timeline" style="width:auto">
+                <span><strong>📅 Timeline</strong> — extraction chronologie narrative</span>
+              </label>
+              <p class="v4-diag" data-module="timeline" style="font-size:12px;color:var(--text-muted);margin:6px 0 0 24px">—</p>
+            </div>
+
+            <div class="v4-module" data-module="metacognition">
+              <label style="display:flex;align-items:center;gap:10px;cursor:pointer">
+                <input type="checkbox" class="v4-toggle" data-module="metacognition" style="width:auto">
+                <span><strong>🪞 Métacognition</strong> — calibration + auto-évaluation de certitude</span>
+              </label>
+              <p class="v4-diag" data-module="metacognition" style="font-size:12px;color:var(--text-muted);margin:6px 0 0 24px">—</p>
+            </div>
+
+            <div class="v4-module" data-module="affect_modulates_consolidation">
+              <label style="display:flex;align-items:center;gap:10px;cursor:pointer">
+                <input type="checkbox" class="v4-toggle" data-module="affect_modulates_consolidation" style="width:auto">
+                <span><strong>💓 Consolidation modulée par l'affect</strong> (V4.1) — boost replay sur high arousal</span>
+              </label>
+              <p style="font-size:12px;color:var(--text-muted);margin:6px 0 0 24px">Nécessite Cognitive state activé.</p>
+            </div>
+          </div>
+
+          <hr style="border:none;border-top:1px solid var(--border);margin:20px 0">
+          <div class="v4-module" data-module="steering">
+            <label style="display:flex;align-items:center;gap:10px;cursor:pointer">
+              <input type="checkbox" id="steering-enable" style="width:auto">
+              <span><strong>🎚 Steering</strong> <span class="beta-badge">beta</span> — pilotage du ton (cœur in-process)</span>
+            </label>
+            <p style="font-size:12px;color:var(--text-muted);margin:6px 0 0 24px">
+              OFF par défaut. Une fois activé : un curseur par axe, 0 = neutre, signe = direction.
+              1ʳᵉ usage d'un axe = calibration (~1 min). N'altère jamais les garde-fous.
+            </p>
+            <div id="steering-controls" style="display:none;margin:12px 0 0 24px">
+              <div id="steering-axes" class="steering-axes"></div>
+            </div>
+          </div>
+
+          <hr style="border:none;border-top:1px solid var(--border);margin:20px 0">
+          <button id="btn-refresh-v4" class="btn-primary" style="background:var(--bg-muted);color:var(--text-muted)">↻ Rafraîchir</button>
+        </div>
+        <div id="tab-system" class="tab-content">
+          <div id="system-info" class="system-info"></div>
+          <label>Seuil d'entropie</label>
+          <input type="range" id="entropy-slider" min="0.1" max="1.0" step="0.05" value="0.2">
+          <span id="entropy-val">0.2</span>
+          <button id="btn-save-entropy" class="btn-primary">Sauver</button>
+          <hr style="margin:16px 0;border-color:var(--border)">
+          <label>Mémoire long-terme</label>
+          <p style="font-size:13px;color:var(--text-muted);margin:4px 0">Efface toutes les mémoires persistantes : Chroma, KG, SDM, MHN, sessions, patterns procéduraux. Lythéa repart sans aucun souvenir.</p>
+          <button id="btn-wipe-memory" class="btn-primary" style="background:var(--danger)">🧠 Effacer toute la mémoire</button>
+          <span id="wipe-result" style="font-size:13px;color:var(--text-muted);margin-left:8px"></span>
+          <hr style="margin:16px 0;border-color:var(--border)">
+          <label>Cache modèles</label>
+          <p style="font-size:13px;color:var(--text-muted);margin:4px 0">Décharge le modèle LLM et le captionneur, puis supprime tous les fichiers téléchargés (HF + Torch cache).</p>
+          <button id="btn-clear-cache" class="btn-primary" style="background:var(--danger)">🗑️ Vider tout le cache</button>
+          <span id="cache-result" style="font-size:13px;color:var(--text-muted);margin-left:8px"></span>
+          <hr style="margin:16px 0;border-color:var(--border)">
+          <label>Authentification</label>
+          <p style="font-size:13px;color:var(--text-muted);margin:4px 0">Réinitialise le token d'accès stocké localement. Tu seras invité à le saisir à nouveau au prochain appel.</p>
+          <button id="btn-reset-token" class="btn-primary">🔐 Réinitialiser le token</button>
+          <span id="token-reset-result" style="font-size:13px;color:var(--text-muted);margin-left:8px"></span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Memory modal -->
+  <div id="memory-overlay" class="modal-overlay hidden">
+    <div class="modal modal-sm">
+      <div class="modal-header">
+        <h2>État mémoire</h2>
+        <button id="memory-close" class="btn-icon">✕</button>
+      </div>
+      <div class="modal-body" id="memory-detail"></div>
+    </div>
+  </div>
+
+  <!-- Context menu -->
+  <div id="ctx-menu" class="ctx-menu hidden">
+    <button data-action="rename">✏️ Renommer</button>
+    <button data-action="pin">📌 Épingler</button>
+    <button data-action="export">📥 Exporter</button>
+    <button data-action="delete">🗑️ Supprimer</button>
+  </div>
+
+  <script src="/static/app.js"></script>
+</body>
+</html>
