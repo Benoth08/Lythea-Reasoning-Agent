@@ -1,0 +1,106 @@
+[project]
+name = "lythea"
+version = "4.0.3"
+description = "Cognitive AI with neuro-inspired 4-memory architecture — Taëlys"
+requires-python = ">=3.10"
+license = {text = "MIT"}
+authors = [{name = "Mika"}]
+
+dependencies = [
+    # ── Core ML / transformers ──────────────────────────────────────────
+    # transformers>=5.5.0 requis pour Gemma 4 (architecture 'gemma4'
+    # ajoutée dans Transformers v5.5.0, avril 2026). Si on revient à
+    # une version < 5.5, les Gemma 4 doivent être retirés du catalogue
+    # CONFIG.CATALOG sinon erreur "model type gemma4 not recognized".
+    "transformers>=5.5.0",
+    "accelerate>=0.30",
+    "huggingface_hub>=0.24",
+    # PyTorch est techniquement amené par transformers, mais on le
+    # déclare explicitement pour garantir une version cohérente et
+    # pour que pip installe le bon wheel selon la plateforme.
+    "torch>=2.0",
+    "sentence-transformers>=3.0",
+
+    # ── Vector store / KG ───────────────────────────────────────────────
+    "chromadb>=0.5",
+    "gliner>=0.2",
+    "rank-bm25>=0.2",
+    "rapidfuzz>=3.0",
+    # Pour la détection de communautés dans le knowledge graph
+    # (cognition/graph_communities.py). networkx est la base graphe,
+    # igraph + leidenalg pour l'algo Leiden (meilleur que Louvain
+    # pour les petits graphes), python-louvain comme fallback.
+    "networkx>=3.0",
+    "python-igraph>=0.11",
+    "leidenalg>=0.10",
+    "python-louvain>=0.16",
+
+    # ── Web framework ──────────────────────────────────────────────────
+    "fastapi>=0.110",
+    "uvicorn[standard]>=0.27",
+    "sse-starlette>=2.0",
+    "pydantic>=2.10",
+    "pydantic-settings>=2.0",
+    "slowapi>=0.1.9",
+    # Pour les clients HTTP externes (ex: external/gemini_client.py).
+    "httpx>=0.27",
+
+    # ── Web / search providers ─────────────────────────────────────────
+    "ddgs",
+
+    # ── Image / vision ─────────────────────────────────────────────────
+    "pillow>=10.0",
+
+    # ── Data manipulation ──────────────────────────────────────────────
+    "numpy",
+    "pandas",
+
+    # ── Document ingestion (ingest.py + server/document_ingest.py) ─────
+    # V6.0.0-rc rev9 — Toutes les libs d'extraction texte sont maintenant
+    # déclarées en hard deps. Avant, pdfplumber / python-docx / bs4 /
+    # openpyxl étaient importés à la volée et plantaient si absents.
+    # Conséquence : un upload PDF/DOCX/XLSX pouvait échouer avec une
+    # erreur d'import obscure. Maintenant pip install lythea les amène.
+    "pdfplumber>=0.10",       # extract_pdf
+    "python-docx>=1.0",       # extract_docx (module 'docx')
+    "openpyxl>=3.1",          # extract_xlsx (V6.0.0-rc rev5)
+    "beautifulsoup4>=4.12",   # extract_html / extract_xml (module 'bs4')
+
+    # ── Utilitaires divers ─────────────────────────────────────────────
+    # Pour le check de version dans run.py (compare versions Python/libs).
+    "packaging>=23.0",
+]
+
+[project.optional-dependencies]
+dev = ["pytest", "pytest-asyncio", "httpx", "ruff", "mypy"]
+
+[project.scripts]
+lythea = "lythea.__main__:main"
+
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[tool.ruff]
+line-length = 100
+target-version = "py310"
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I"]
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+testpaths = ["tests"]
+# Suppression ciblée des warnings tiers (hors de notre contrôle), pour
+# garder une sortie de test propre. On NE met PAS un ignore global des
+# DeprecationWarning afin de ne pas masquer nos propres régressions.
+#   - Swig*/swigvarlink : extension C (igraph/leidenalg) sous Python 3.12
+#   - starlette.testclient : déprécation httpx → httpx2 dans FastAPI TestClient
+#   - resume_download : argument déprécié dans huggingface_hub.snapshot_download
+# (la variante Swig émise à l'arrêt de l'interpréteur est couverte en plus
+#  par PYTHONWARNINGS dans test.sh, car hors capture pytest.)
+filterwarnings = [
+    'ignore:builtin type \w+ has no __module__ attribute:DeprecationWarning',
+    'ignore:Using `httpx` with `starlette.testclient` is deprecated:',
+    'ignore:The `resume_download` argument is deprecated:UserWarning',
+]

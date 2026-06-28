@@ -1,0 +1,88 @@
+# ───────────────────────── Python ─────────────────────────
+__pycache__/
+*.py[cod]
+*$py.class
+*.egg-info/
+.eggs/
+build/
+dist/
+*.egg
+
+# Environnements virtuels
+.venv/
+venv/
+env/
+ENV/
+.python-version
+
+# ───────────────────── Secrets / config locale ─────────────────────
+# Le .env RÉEL ne doit JAMAIS être commité — seul .env.example l'est.
+# (clés API : OpenRouter / Z.ai / HuggingFace, etc.)
+.env
+.env.*
+!.env.example
+*.key
+*.pem
+*.p12
+secrets.json
+credentials.json
+service_account*.json
+*_token.txt
+hf_token*
+
+# ─────────────────── Données runtime Lythéa (PRIVÉ) ───────────────────
+# Mémoire, stores, dumps de conversations = données personnelles.
+# Ne JAMAIS publier : elles sont régénérées au runtime.
+chroma/
+chroma_db/
+chromadb/
+*.chroma
+data/
+memory_store/
+*_memory.pkl
+*.sdm
+*.mhn
+*.kg
+*.gpickle
+sessions/
+conversations/
+uploads/
+user_data/
+
+# Logs
+logs/
+*.log
+*.out
+
+# ──────────────── Modèles / poids / caches HuggingFace ────────────────
+# Les poids se téléchargent au 1er run (plusieurs dizaines de Go).
+models/
+weights/
+*.safetensors
+*.bin
+*.pt
+*.pth
+*.gguf
+*.onnx
+.cache/
+hf_cache/
+huggingface/
+.huggingface/
+transformers_cache/
+
+# ───────────────────────── Tests / outils ─────────────────────────
+.pytest_cache/
+.coverage
+htmlcov/
+.tox/
+.mypy_cache/
+.ruff_cache/
+.ipynb_checkpoints/
+
+# ───────────────────────── OS / IDE ─────────────────────────
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+*.swp
+*~
