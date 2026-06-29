@@ -2434,6 +2434,11 @@
     scrollBottom();
 
     let aiTextEl = null;
+    // Sticky : passe à true dès que ce stream est « déplacé » (l'utilisateur a
+    // changé/supprimé la conversation d'origine pendant le streaming). Une fois
+    // déplacé, on n'affiche plus rien en direct — la réponse reste persistée
+    // côté serveur et réapparaît à la réouverture de la conversation.
+    let displaced = false;
     let finalText = "";
     let cognitiveEl = null;
     let reasoningEl = null;
@@ -2504,12 +2509,21 @@
     }
 
     function handleSSE(type, data) {
-      // Si la conversation active n'est plus celle d'où ce message est parti
-      // (l'utilisateur a changé ou supprimé la conversation pendant le
-      // streaming), on draine le flux sans rien afficher — sinon la réponse
-      // fuiterait dans la mauvaise conversation. Le stream se termine
-      // normalement côté serveur (réponse persistée dans la conv d'origine).
-      if (S.currentSession !== originSession) return;
+      // Anti-fuite inter-conversation. Si l'utilisateur a changé/supprimé la
+      // conversation d'origine pendant le streaming, la réponse ne doit JAMAIS
+      // s'afficher ailleurs. Deux signaux, STICKY (displaced ne se réarme pas
+      // même au retour dans la conv d'origine : le DOM a été reconstruit entre
+      // temps, nos éléments sont invalides) :
+      //   1. la conversation active diverge de l'origine ;
+      //   2. notre bulle a été détachée du DOM par un re-render (basculement).
+      // Une fois déplacé, on draine le flux ; la réponse reste persistée côté
+      // serveur et réapparaît à la prochaine ouverture de la conversation.
+      if (displaced) return;
+      if (S.currentSession !== originSession ||
+          (aiTextEl && !dom.messages.contains(aiTextEl))) {
+        displaced = true;
+        return;
+      }
       if (type === "cognitive") {
         cognitiveEl = appendCollapsible("cognitive", "Activité cognitive", data.items || []);
         scrollBottom();
