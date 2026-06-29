@@ -1052,6 +1052,10 @@
         }
         delete S.tasksBySession[s.session_id];
         if (S.currentSession === s.session_id) {
+          // Stoppe un éventuel streaming de chat appartenant à cette
+          // conversation (sinon sa réponse atterrirait dans la conversation
+          // suivante). L'AbortError est géré proprement dans sendMessage.
+          if (S.abortCtrl) { try { S.abortCtrl.abort(); } catch (e) {} }
           S.currentSession = null;
           S.messages = [];
           renderMessages();
@@ -2378,6 +2382,12 @@
     // Ensure session exists
     if (!S.currentSession) await newChat();
 
+    // Fige la conversation d'origine de CE message. Si l'utilisateur change
+    // ou supprime la conversation pendant le streaming, la réponse ne doit
+    // PAS s'afficher dans une autre conversation (elle reste persistée côté
+    // serveur dans la conversation d'origine). Vérifié dans handleSSE.
+    const originSession = S.currentSession;
+
     // Snapshot des pièces jointes pour l'affichage et le payload.
     const imgs = S.attachedImages.length ? [...S.attachedImages] : null;
     const docs = S.attachedDocuments.length ? [...S.attachedDocuments] : null;
@@ -2494,6 +2504,12 @@
     }
 
     function handleSSE(type, data) {
+      // Si la conversation active n'est plus celle d'où ce message est parti
+      // (l'utilisateur a changé ou supprimé la conversation pendant le
+      // streaming), on draine le flux sans rien afficher — sinon la réponse
+      // fuiterait dans la mauvaise conversation. Le stream se termine
+      // normalement côté serveur (réponse persistée dans la conv d'origine).
+      if (S.currentSession !== originSession) return;
       if (type === "cognitive") {
         cognitiveEl = appendCollapsible("cognitive", "Activité cognitive", data.items || []);
         scrollBottom();
