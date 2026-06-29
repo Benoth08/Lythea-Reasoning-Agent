@@ -22,6 +22,7 @@
 - [Architecture](#architecture)
 - [Prérequis](#prérequis)
 - [Installation & déploiement](#installation--déploiement)
+- [🔐 Accès & authentification (Cloudflare vs direct)](#-accès--authentification-cloudflare-vs-direct)
 - [Modèles supportés (CATALOG)](#modèles-supportés-catalog)
 - [🌀 Cascade Gemini (optionnelle)](#-cascade-gemini-optionnelle)
 - [🎛️ Steering CAA](#️-steering-caa)
@@ -217,6 +218,93 @@ pip install --break-system-packages --ignore-installed --no-deps typer==0.26.7
 Après une modification de l'UI (`index.html` / `app.js`), faire un
 **rechargement forcé** du navigateur (Ctrl+Shift+R). Après un changement de
 modèle dans `config.py`, **recharger le modèle** depuis l'interface.
+
+---
+
+## 🔐 Accès & authentification (Cloudflare vs direct)
+
+Il y a **deux couches indépendantes** : *comment tu atteins le serveur*
+(l'exposition) et *comment tu prouves que tu as le droit d'entrer* (le token).
+
+### Le token d'authentification
+
+`deploy.sh` génère un `LYTHEA_AUTH_TOKEN` aléatoire (32 octets, 64 caractères
+hex) et l'écrit dans `.env`. Il te l'affiche **à la fin du déploiement** :
+
+```
+🔐 Token d'auth (à saisir au 1er accès web) :
+   3f9a8c2e…<64 caractères hex>
+```
+
+Tu peux le relire à tout moment :
+
+```bash
+grep LYTHEA_AUTH_TOKEN .env
+```
+
+Au premier accès **via une URL publique**, l'interface te demande ce token :
+colle-le, il est mémorisé dans ton navigateur (`localStorage`) et renvoyé
+ensuite automatiquement (en-tête `Authorization: Bearer …`). Un bouton
+**« 🔐 Réinitialiser le token »** dans les réglages permet de l'oublier et de
+le re-saisir.
+
+### Deux façons d'accéder
+
+| Méthode | URL | Token requis ? |
+|---|---|---|
+| **A. Tunnel Cloudflare** (défaut) | `https://xxx.trycloudflare.com` (change à chaque lancement) | ✅ **Oui** — colle le token au 1er accès |
+| **B. Accès direct / loopback** | `http://localhost:7860` (ou tunnel SSH) | ❌ **Non** — bypass automatique |
+
+Le serveur applique cette règle **tout seul** : il détecte les en-têtes que
+Cloudflare ajoute (`cf-connecting-ip`…). Requête arrivée par le tunnel →
+token exigé (l'URL est publique). Requête en loopback direct → token bypassé
+(l'accès au pod fait déjà barrière). Pour exiger le token **même en
+loopback**, mets `LYTHEA_AUTH_STRICT=true` dans `.env`.
+
+#### A. Avec Cloudflare (le défaut)
+
+`launch.sh` lance `cloudflared` et imprime les deux URLs :
+
+```
+🔗 Tunnel : https://abcd-efgh.trycloudflare.com
+🔗 Local  : http://localhost:7860
+```
+
+Ouvre l'URL **Tunnel** dans ton navigateur → colle le token d'auth quand l'UI
+le demande. ⚠️ Cette URL est **publique** : quiconque la connaît peut tenter
+d'y accéder — le token est ta seule protection, ne la diffuse pas à la légère.
+
+#### B. Sans Cloudflare (accès direct)
+
+- **Sur le pod** (terminal de la machine GPU) : `http://localhost:7860`, sans token.
+- **Depuis ta machine**, via un tunnel SSH (URL stable, privée, sans token) :
+  ```bash
+  ssh -L 7860:localhost:7860 root@<ip-du-pod>
+  # puis, dans le navigateur : http://localhost:7860
+  ```
+- **Via le proxy RunPod**, si tu as exposé le port 7860 à la **création** du
+  pod : `https://<pod-id>-7860.proxy.runpod.net`. ⚠️ URL publique elle aussi →
+  garde le token actif (`LYTHEA_AUTH_STRICT=true`).
+
+### Pourquoi Cloudflare par défaut ?
+
+Le tunnel SSH et le proxy RunPod fonctionnent, mais Cloudflare a trois
+avantages décisifs pour des pods éphémères :
+
+1. **Zéro configuration réseau.** Le tunnel est **sortant** : c'est le pod qui
+   appelle Cloudflare, donc aucun port entrant à ouvrir et **rien à déclarer à
+   la création du pod**. Si tu as oublié d'exposer le port 7860 sur RunPod (le
+   cas le plus fréquent), Cloudflare te sauve — le proxy RunPod, lui, exige que
+   le port ait été déclaré dès le départ.
+2. **HTTPS valide d'office.** Certificat TLS automatique, sans avertissement
+   navigateur — **indispensable au WebSocket sécurisé** du streaming de tokens.
+3. **Portable.** Marche à l'identique sur RunPod, Vast.ai, Lambda ou une
+   machine perso derrière un NAT. Le proxy RunPod est spécifique à RunPod.
+
+**Le compromis :** l'URL `trycloudflare` **change à chaque `launch.sh`** (le
+mode gratuit ne donne pas de sous-domaine stable) et elle est **publique** —
+d'où le token d'auth obligatoire sur ce chemin. Si tu veux une URL **stable et
+privée**, le **tunnel SSH** (méthode B) est le meilleur complément.
 
 ---
 
