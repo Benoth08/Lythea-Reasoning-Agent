@@ -51,6 +51,10 @@ même processus Python*.
 
 Concrètement, Lythéa apporte :
 
+- un **cycle cognitif biomimétique** : chaque message traverse des phases
+  ancrées en neuro-anatomie — encodage (cortex entorhinal), codage prédictif
+  (Friston), surprise/saillance, métacognition (mPFC) et inhibition de sortie
+  — au lieu d'un simple « prompt → réponse » ;
 - une **mémoire biomimétique multi-étages** qui persiste et se consolide
   (au lieu d'un simple historique de tokens) ;
 - un **agent observable**, *Taëlys*, qui décompose une mission en
@@ -113,6 +117,53 @@ neuroscience :
 
 La **consolidation** se fait par phases de *microsleep* et *deep sleep*
 (ripples + replay), pas à chaque message.
+
+### 🧬 Cycle cognitif (`lythea/cognition/`)
+
+Le cœur de Lythéa. Chaque message traverse un **cycle cognitif** dont les
+étapes sont câblées comme des *phases / hooks* (A → E) dans l'orchestrateur
+`hippocampe.py`. Chaque module a un rôle précis et, le plus souvent, un
+**ancrage neuro-anatomique** explicite. 25 modules, ~12 000 lignes.
+
+**Le cycle de traitement**
+
+| Étape | Module | Inspiration | Rôle |
+|---|---|---|---|
+| **Encodage** | `encoding.py` | cortex entorhinal | texte → représentations numériques (sparsification, *novelty gating*) ; ne stocke rien, *prépare* les signaux |
+| **Prédiction** | `predictive_coding.py` | codage prédictif (Friston) | prédit l'embedding du prochain message ; écart faible (surprise basse) → mode *low-power* (réponse rapide, sans RAG) |
+| **Écriture** | `storage.py` | hippocampe (CA3) | écriture SDM token-par-token pondérée par la surprise ; promotion d'entités au KG |
+| **Rappel** | `retrieval.py` | CA3, *pattern completion* | réassemble le contexte RAG par 3 voies parallèles : identité (KG) + MHN + Chroma |
+| **Génération** | `generation.py` | — | nettoyage de sortie, prompt de raisonnement en deux passes |
+| **Surprise** | `surprise.py` | ripples + dopamine (CA1) | surprise composite (4 signaux de nouveauté) + calibration du doute ; pilote la force d'écriture mémoire |
+| **Métacognition** | `metacognition.py` | mPFC + cingulaire (dACC) | « suis-je en train de me tromper ? ma confiance est-elle calibrée ? » → étiquette de confiance, *hedging* |
+| **Inhibition** | `inhibition.py` | contrôle inhibiteur | filtre de sortie en cascade à 3 niveaux (dernier rempart avant l'utilisateur) |
+| **Consolidation** | `consolidation.py` | sommeil / *replay* | *microsleep* (ripples + replay + compression Chroma) et *deep sleep* (transfert vers le « néocortex ») ; persistance + sync git, hors des phases actives |
+
+**Contrôle exécutif & raisonnement**
+
+| Module | Inspiration | Rôle |
+|---|---|---|
+| `planning.py` | PFC latéral | contrôle exécutif : intention + pile de buts + générateur de plan ; contexte persistant sur plusieurs tours |
+| `timeline.py` | — | extraction d'une chronologie narrative des échanges |
+| `deep_reasoning.py` | — | chaîne de raisonnement profond multi-étapes (`DeepReasoningChain`) |
+| `deliberation.py` | — | raisonnement délibératif multi-angles **pour les modèles non-*thinking*** (qui n'ont pas de `<think>` natif pour décomposer/confronter) |
+| `reflection.py` | métacognition | boucle d'auto-critique **sélective**, déclenchée seulement sur les cas à risque |
+| `auto_calibrator.py` | — | calibration par quantiles, indépendante du modèle |
+
+**Routage & récupération avancée**
+
+| Module | Rôle |
+|---|---|
+| `semantic_router.py` | choix d'outil multi-classes par embeddings (web, python, mcp…) — remplace l'ancienne décision binaire web/non-web |
+| `tool_dispatcher.py` | *slow-path* : quand le routeur sémantique hésite (zone ambiguë), c'est le LLM qui tranche |
+| `web_classifier.py` | décide « web ou non » via le LLM quand le *fast-path* par regex ne tranche pas |
+| `crag.py` | *Corrective RAG* : évalue et classe les chunks récupérés au lieu de les écarter en silence |
+| `graph_communities.py` | *GraphRAG* : détection de communautés thématiques sur le graphe de connaissances |
+| `mcp_integration.py` | choisit l'outil MCP à invoquer (lecture/écriture de fichier, listing…) quand la route `mcp` est retenue |
+
+La **perception visuelle** (`vision_semantic.py`, `vision_active.py`) et la
+**cascade Gemini** (`cascade.py`) appartiennent aussi à `cognition/` ; elles
+ont leur propre section ci-dessous.
 
 ### 🤖 Agent Taëlys (`lythea/agentic/`)
 
