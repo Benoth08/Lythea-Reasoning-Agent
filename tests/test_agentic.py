@@ -30,6 +30,8 @@ class _FakeModel:
             return "```python\n# file: src/app.py\nprint('hi')\n```"
         if "étape 2" in prompt:
             return "```python\n# file: tests/test_app.py\ndef test_x(): assert True\n```"
+        if "synthèse" in prompt or "réponse finale" in prompt:
+            return "Travail terminé : app.py et test_app.py écrits, tests au vert."
         return "```\nfile: README.md\n# Projet\n```"
 
 

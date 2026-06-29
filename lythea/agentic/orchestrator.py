@@ -466,11 +466,15 @@ def _collapse_runaway(text: str, min_words: int = 4, max_repeats: int = 1) -> st
 
 
 def _clean_synthesis(text: str) -> str:
-    """Nettoie la synthèse finale : leak <think>, répétition en boucle,
-    fences vides, sollicitations. Tout est no-op sur une synthèse saine
-    (pas de <think>, pas de répétition → rien retiré)."""
+    """Nettoie la synthèse finale : leak <think>, déballage de code, répétition
+    en boucle, sollicitations. No-op sur une synthèse saine (texte sans code,
+    sans <think>, sans répétition → rien retiré)."""
     text = _strip_think(text or "")          # raisonnement <think> (modèles thinking)
-    text = re.sub(r"```[^\n]*\n\s*```", "", text)
+    # La synthèse est du TEXTE (le code vit dans les fichiers, jamais ici). Les
+    # modèles « coder » tendent à déballer du code + de l'auto-revue après leur
+    # réponse : on tronque dès le premier bloc ``` → jette le code ET les
+    # commentaires qui suivent. Une synthèse propre n'a pas de ``` (no-op).
+    text = text.split("```", 1)[0]
     text = _SOLICIT_RE.sub("", text)
     text = _collapse_runaway(text)           # boucle de phrases répétées
     text = re.sub(r"[ \t]{2,}", " ", text)
@@ -3302,7 +3306,7 @@ class AgentOrchestrator:
                         f"Tâche : {task}\nFichiers : {paths}\n{verdict}\n"
                         "Rédige UNE synthèse brève (3-5 phrases) de ce qui a été "
                         "accompli et de l'état des tests. Pas de code."
-                    ), prose=True)
+                    ), prose=True, max_new_tokens=384)
                 else:
                     # analyze/answer: ground the fallback on what was actually
                     # read/run, never on test verdicts (there are none).
@@ -3312,12 +3316,13 @@ class AgentOrchestrator:
                         "texte clair, d'après ce qui précède. SANS tool_call, "
                         "sans code. Si l'information manque, dis-le."
                         "\nTaëlys :"
-                    ), prose=True)
+                    ), prose=True, max_new_tokens=768)
                     synth = _strip_think(synth)
                     synth = re.sub(r"<tool_call>.*?</tool_call>", "", synth,
                                    flags=re.S).strip()
             except Exception:  # noqa: BLE001
                 log.exception("react synthesis failed")
+        synth = _clean_synthesis(synth)   # même nettoyage que le chemin `run`
         if synth.strip():
             yield {"type": "synthesis", "run_id": run_id, "text": synth}
             # Mode RESEARCH : une synthèse CONSÉQUENTE est un livrable qu'on
