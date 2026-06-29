@@ -1,5 +1,5 @@
 #!/bin/bash
-# Lythéa V3 — Script de déploiement automatique
+# Lythéa — Script de déploiement automatique
 #
 # Usage : bash deploy.sh
 #
@@ -30,7 +30,7 @@ info()  { echo -e "${BLUE}  →${NC} $1"; }
 
 echo ""
 echo "============================================================"
-echo "  Lythéa V3 — Déploiement"
+echo "  Lythéa — Déploiement"
 echo "============================================================"
 echo ""
 
@@ -196,7 +196,7 @@ if [ ! -f ".env" ]; then
         ok ".env créé à partir de .env.example"
     else
         warn ".env.example introuvable, création d'un .env minimal"
-        echo "# Lythéa V3 environment" > .env
+        echo "# Lythéa environment" > .env
     fi
 else
     ok ".env existe déjà (préservé)"

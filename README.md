@@ -12,6 +12,12 @@
 ![Transformers](https://img.shields.io/badge/Transformers-in--process-yellow)
 ![Status](https://img.shields.io/badge/statut-recherche%2Fperso-orange)
 
+<p align="center">
+  <img src="docs/taelys-ui.png" alt="Interface de Taëlys en mode agent (modèle Qwen3-14B, 4-bit)" width="820">
+</p>
+
+<p align="center"><sub><em>L'interface de Taëlys en mode agent — splash « À l'écoute », sélecteur de modèle et panneau Workspace.</em></sub></p>
+
 ---
 
 ## Sommaire
@@ -144,6 +150,27 @@ bloquante (fallback local transparent). Voir [la section dédiée](#-cascade-gem
   Brave, DuckDuckGo, SearXNG, Serper, Tavily (sélection par `factory.py`).
 - `lythea/mcp/` — support **Model Context Protocol** (client, gestion de
   serveurs, prérequis).
+
+### 👁️ Vision active — « zoom cognitif » (`lythea/cognition/vision_semantic.py`)
+
+Face à une image (modèle multimodal/VLM), Lythéa ne se limite pas à une
+description globale : elle peut **re-focaliser le modèle sur une région précise**
+de l'image — comme un regard qui se rapproche d'un détail.
+
+- **Déclenchement sémantique et multilingue.** Plutôt que de guetter des
+  mots-clés (« zoom sur… », « que dit le panneau ? »), le système compare
+  l'intention de ton message à des *prototypes d'intentions* par similarité
+  d'embeddings (50+ langues, robuste aux paraphrases et aux fautes de frappe).
+- **Re-lecture ciblée.** Quand le besoin est détecté, un prompt focalisé fait
+  ré-examiner **la zone** par le VLM, et l'observation est réinjectée dans le
+  contexte (badge « 🔍 Zoom cognitif sur : … »).
+- **Mémoire et suggestion.** Chaque zoom est enregistré dans la mémoire de
+  travail visuelle, et Lythéa peut **proposer un zoom** au tour suivant.
+- **Garde-fou anti-hallucination.** Lorsqu'une image est présente mais
+  qu'aucun zoom n'est demandé, un filet évite que le modèle invente des détails.
+
+Bénéfice : plus de précision sur les détails fins (texte dans l'image, petits
+objets) et nettement moins d'hallucinations qu'une description « en un coup ».
 
 ---
 

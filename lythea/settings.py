@@ -177,8 +177,11 @@ class LytheaSettings(BaseSettings):
     agent_kg_write_enabled: bool = Field(default=False)         # consolidation KG
     agent_memory_recall_budget_chars: int = Field(default=1200, ge=200, le=8000)
     # Verrou de génération partagé chat/agent (permet de chatter pendant une
-    # mission sans collision). OFF par défaut : à activer pour en bénéficier.
-    agent_chat_shared_lock_enabled: bool = Field(default=False)
+    # mission sans collision). ON par défaut : le chat prend le même verrou que
+    # l'agent autour de sa génération → plus de collision GPU ni de hooks
+    # entrelacés. Mettre à False pour retrouver l'ancien comportement (chat
+    # qui répond sans attendre l'agent, au risque d'une collision).
+    agent_chat_shared_lock_enabled: bool = Field(default=True)
     agent_initial_plan: bool = Field(default=True)   # plan initial adaptatif (L1/L2)
     agent_generalist_verify: bool = Field(default=True)  # vérif non-code (heuristique + auto-critique)
     # Profil thinking : "auto" applique l'allègement de l'échafaudage dès qu'un

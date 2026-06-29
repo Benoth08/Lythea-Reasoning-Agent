@@ -5,8 +5,9 @@ importé par model.py, agentic/workers.py et server/routes.py sans créer de cyc
 ni tirer tout le moteur. Un seul GPU/modèle in-process — deux générations
 simultanées entrelaceraient leurs forward-pass ET les hooks à état partagé
 (latent_state, file de capture, hook d'entropie) → corruption. L'agent prend ce
-verrou systématiquement ; le chat le prend si `agent_chat_shared_lock_enabled`
-est ON, ce qui permet alors de chatter pendant une mission sans collision.
+verrou systématiquement ; le chat le prend aussi par défaut
+(`agent_chat_shared_lock_enabled`, ON), ce qui permet de chatter pendant une
+mission sans collision.
 """
 from __future__ import annotations
 

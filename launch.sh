@@ -1,5 +1,5 @@
 #!/bin/bash
-# Lythéa V3 — Launch with Cloudflare tunnel and full preload
+# Lythéa — Launch with Cloudflare tunnel and full preload
 # Usage: bash launch.sh [PORT]
 #
 # Démarre dans l'ordre :

@@ -1,5 +1,5 @@
 #!/bin/bash
-# Lythéa V3 — Script de validation
+# Lythéa — Script de validation
 #
 # Usage : bash test.sh
 
@@ -21,7 +21,7 @@ info()  { echo -e "${BLUE}  →${NC} $1"; }
 
 echo ""
 echo "============================================================"
-echo "  Lythéa V3 — Tests"
+echo "  Lythéa — Tests"
 echo "============================================================"
 echo ""
 

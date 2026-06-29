@@ -907,13 +907,13 @@ async def chat(body: ChatRequest, request: Request) -> StreamingResponse:
         thoughts_collected: list[str] = []
 
         def _generate():
-            # Verrou partagé chat/agent : si activé, le chat prend le MÊME
-            # verrou que l'agent autour de sa génération → plus de collision
-            # quand on chatte pendant une mission. OFF par défaut (nullcontext).
+            # Verrou partagé chat/agent : le chat prend le MÊME verrou que
+            # l'agent autour de sa génération → plus de collision quand on
+            # chatte pendant une mission. ON par défaut (cf. settings).
             import contextlib
             from lythea.genlock import GENERATION_LOCK
             from lythea.settings import get_settings
-            _shared = bool(getattr(get_settings(), "agent_chat_shared_lock_enabled", False))
+            _shared = bool(getattr(get_settings(), "agent_chat_shared_lock_enabled", True))
             _lock_cm = GENERATION_LOCK if _shared else contextlib.nullcontext()
             try:
                 with _lock_cm:

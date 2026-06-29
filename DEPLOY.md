@@ -12,8 +12,8 @@ mv lythea lythea_backup_$(date +%Y%m%d) 2>/dev/null || true
 # 2. Extraire la nouvelle version
 # Le flag --no-same-owner évite les warnings bénins "Cannot change ownership"
 # quand le tarball a été créé par un autre uid (typiquement uid 999 sandbox).
-tar --no-same-owner -xzf lythea_v3_step_8_5.tar.gz
-cd lythea_v3_step_8_5
+tar --no-same-owner -xzf lythea_v5_9_torch28.tar.gz
+cd lythea_v5_8_combo/lythea_v5_8
 
 # 3. Rapatrier les données existantes (si tu en as)
 cp -r ../lythea_backup_*/data ./ 2>/dev/null || true

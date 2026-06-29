@@ -44,9 +44,12 @@ log = logging.getLogger(__name__)
 _PLAN_LINE = re.compile(r"^\s*\d+[.)\]]\s+(.+?)\s*$")
 _CONF_RE = re.compile(r"(\d+(?:\.\d+)?)")
 
-_MAX_STEPS = 5
-# Note : l'arrêt anti-boucle est désormais géré par ProgressTracker
-# (progress.should_stop, palier STOP) — généraliste, tous types de tâche.
+_MAX_STEPS = 8
+# 5→8 : un cycle TDD complet (écrire le test + le module + lancer + plusieurs
+# corrections) dépassait 5 étapes et finissait coupé prématurément. L'arrêt
+# anti-boucle reste géré par ProgressTracker (progress.should_stop, palier
+# STOP) — généraliste, tous types de tâche — donc plus d'étapes n'autorise
+# PAS une boucle infinie.
 _CTX_CLIP = 1200  # chars of prior-step context carried forward
 
 # Plan steps that are pure *process* (no file produced) and that the agent
@@ -399,10 +402,36 @@ _SOLICIT_RE = re.compile(
 )
 
 
+def _collapse_runaway(text: str, min_words: int = 4, max_repeats: int = 1) -> str:
+    """Coupe une répétition dégénérée (le modèle boucle sur les mêmes
+    phrases). Conservateur : ne traite QUE les segments « substantiels »
+    (≥ min_words mots) qui réapparaissent au-delà de max_repeats — une
+    synthèse saine (phrases uniques) passe intacte (no-op)."""
+    if not text:
+        return ""
+    segs = re.split(r"(?<=[.!?])\s+|\n+", text)
+    seen: dict[str, int] = {}
+    out: list[str] = []
+    for seg in segs:
+        norm = re.sub(r"\s+", " ", seg.strip().lower())
+        if len(norm.split()) < min_words:
+            out.append(seg)            # garder les transitions courtes
+            continue
+        seen[norm] = seen.get(norm, 0) + 1
+        if seen[norm] > max_repeats:
+            break                      # boucle détectée → on coupe ici
+        out.append(seg)
+    return " ".join(s.strip() for s in out if s.strip()).strip()
+
+
 def _clean_synthesis(text: str) -> str:
-    """Drop empty code fences and conversational solicitations."""
-    text = re.sub(r"```[^\n]*\n\s*```", "", text or "")
+    """Nettoie la synthèse finale : leak <think>, répétition en boucle,
+    fences vides, sollicitations. Tout est no-op sur une synthèse saine
+    (pas de <think>, pas de répétition → rien retiré)."""
+    text = _strip_think(text or "")          # raisonnement <think> (modèles thinking)
+    text = re.sub(r"```[^\n]*\n\s*```", "", text)
     text = _SOLICIT_RE.sub("", text)
+    text = _collapse_runaway(text)           # boucle de phrases répétées
     text = re.sub(r"[ \t]{2,}", " ", text)
     text = re.sub(r"\n{3,}", "\n\n", text)
     return text.strip()
@@ -1459,11 +1488,19 @@ class AgentOrchestrator:
         # une fois. On détecte cette répétition dégénérée et on la traite comme
         # une approbation molle (fail-open) plutôt que de la propager comme
         # feedback de correction — ce qui relançait l'agent à tort.
+        # Si les tests sont CONNUS en échec, aucune approbation (molle ou
+        # explicite) ne doit clore la mission : un critic qui dégénère en
+        # répétition ou répond « OK » à tort ne peut pas valider du rouge.
+        # On renvoie alors une correction concrète → l'agent persévère.
+        # (En research/answer, exec_last vaut None → comportement inchangé.)
+        _tests_failed = exec_last is not None and not exec_last.get("ok")
+        _force_fix = ("Les tests échouent encore — lis le message d'erreur "
+                      "et corrige le module pour qu'ils passent.")
         _lines = [ln.strip() for ln in out.splitlines() if ln.strip()]
         _uniq = set(_lines)
         if len(_lines) >= 4 and len(_uniq) <= 2:
             if not any("CORRIGER" in ln.upper() for ln in _uniq):
-                return True, ""
+                return (False, _force_fix) if _tests_failed else (True, "")
             out = next(iter(_uniq))  # dé-duplique avant de critiquer
         up = out.upper()
         # Approbation tolérante : pas de « CORRIGER » et un marqueur OK dans
@@ -1471,7 +1508,7 @@ class AgentOrchestrator:
         # le ^OK strict ratait (→ faux négatif → boucle propagée).
         if "CORRIGER" not in up and re.search(
                 r"\b(OK|VALID|APPROUV|RIEN|CORRECT|COMPLET)", up[:80]):
-            return True, ""
+            return (False, _force_fix) if _tests_failed else (True, "")
         # Strip a leading "CORRIGER :" (ou « Réponse : CORRIGER ») label.
         fb = re.sub(r"(?is)^\s*(r[ée]ponse\s*:?\s*)?corriger\s*:?\s*", "",
                     out).strip()
@@ -3701,7 +3738,7 @@ class AgentOrchestrator:
                     "les créer (ils existent). Pas de code, une seule synthèse, "
                     "sans question ni formule de politesse."
                 )
-                synth = await self._gen(core, synth_prompt)
+                synth = await self._gen(core, synth_prompt, max_new_tokens=384)
                 synth = _clean_synthesis(synth)
             except Exception:  # noqa: BLE001
                 log.exception("agent synthesis failed")
