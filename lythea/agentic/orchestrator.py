@@ -2526,6 +2526,7 @@ class AgentOrchestrator:
             pensee = re.sub(r"(?i)^\s*pens[eé]+e?\s*:?\s*", "", pensee.strip())
             reasoning = (think_txt or pensee).strip()
             reasoning = _strip_tool_syntax(reasoning)   # masque les balises résiduelles
+            reasoning = _collapse_runaway(reasoning)    # coupe un raisonnement qui boucle
             reasoning = re.sub(r"\n{3,}", "\n\n", reasoning)[:1200]
 
             # Explicit completion via the 'finish' tool. Validated with the
