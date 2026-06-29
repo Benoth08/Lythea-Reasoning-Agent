@@ -194,8 +194,8 @@ MHN/Chroma) → récupération du contexte (identité KG + RAG) → génération
 ## Installation & déploiement
 
 ```bash
-git clone https://github.com/<votre-compte>/lythea.git
-cd lythea
+git clone https://github.com/Benoth08/Lythea-Reasoning-Agent.git
+cd Lythea-Reasoning-Agent
 
 bash deploy.sh     # installe torch, transformers, bitsandbytes + deps,
                    #   et génère le token d'authentification
