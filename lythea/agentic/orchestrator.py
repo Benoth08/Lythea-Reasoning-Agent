@@ -243,6 +243,31 @@ def _capture_think(text: str) -> str:
     return "\n".join(p.strip() for p in parts).strip()
 
 
+# Balises de protocole d'appel d'outil. Le parsing (tools.py) les consomme en
+# amont ; ces regex servent UNIQUEMENT à les retirer du texte AFFICHÉ — sinon un
+# modèle qui émet <tools>/<write_file> (ex. Qwen) les laisse fuiter dans la
+# « pensée », alors que <tool_call> seul était masqué.
+_TOOL_TAGS_RE = re.compile(
+    r"<tool_call>.*?</tool_call>|<tools>.*?</tools>|"
+    r"<write_file\b[^>]*>.*?</write_file>|<edit_file\b[^>]*>.*?</edit_file>",
+    re.S | re.I,
+)
+_TOOL_TAG_FRAGMENT_RE = re.compile(
+    r"</?(?:tool_call|tools|write_file|edit_file)\b[^>]*>", re.I)
+
+
+def _strip_tool_syntax(text: str) -> str:
+    """Retire les balises d'appel d'outil du texte AFFICHÉ (<tools>,
+    <tool_call>, <write_file>, <edit_file>) — blocs complets puis fragments
+    orphelins. N'affecte QUE l'affichage ; le parsing se fait sur le texte
+    brut en amont. No-op si le texte n'en contient pas."""
+    if not text:
+        return ""
+    s = _TOOL_TAGS_RE.sub("", text)
+    s = _TOOL_TAG_FRAGMENT_RE.sub("", s)
+    return s.strip()
+
+
 def _focus_failing_case(stdout_tail: str) -> dict:
     """Isole UN cas d'échec précis depuis la sortie pytest, pour une
     correction ciblée (niveau 4 de l'escalier de déblocage) plutôt qu'une
@@ -2495,9 +2520,12 @@ class AgentOrchestrator:
             history += f"\nTaëlys (action {it}) : {out.strip()[:1500]}\n"
             # Reasoning surfaced in the UI: prefer the model's native <think>
             # trace (rich), else the prose "Pensée : …" that preceded the call.
-            pensee = re.split(r"<tool_call>|\{\s*[\"']name[\"']", out)[0]
+            pensee = re.split(
+                r"<tool_call>|<tools>|<write_file|<edit_file|\{\s*[\"']name[\"']",
+                out)[0]
             pensee = re.sub(r"(?i)^\s*pens[eé]+e?\s*:?\s*", "", pensee.strip())
             reasoning = (think_txt or pensee).strip()
+            reasoning = _strip_tool_syntax(reasoning)   # masque les balises résiduelles
             reasoning = re.sub(r"\n{3,}", "\n\n", reasoning)[:1200]
 
             # Explicit completion via the 'finish' tool. Validated with the
