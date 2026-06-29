@@ -125,7 +125,7 @@ done
 echo "    → Cœur ML (transformers, accelerate, gliner…) en --no-deps (torch préservé)…"
 # Compagnons SANS torch (sûrs en deps complètes)
 pip3 install $PIP_FLAGS --quiet \
-    "huggingface_hub>=0.24" "tokenizers>=0.20" regex safetensors einops timm \
+    "huggingface_hub>=0.24" "tokenizers>=0.22.0,<=0.23.0" regex safetensors einops timm \
     "sse-starlette>=2.0" "rank-bm25>=0.2" ddgs \
     pytest \
     networkx python-igraph python-louvain leidenalg \
