@@ -1148,6 +1148,16 @@ class HFModelWrapper(ModelWrapper):
             temperature=kwargs.get("temperature", 0.7),
             top_p=kwargs.get("top_p", 0.9),
         )
+        # Anti-répétition optionnel, réservé aux générations de TEXTE pur (ex.
+        # synthèse de l'agent) : on casse à la SOURCE la dérive en boucle des
+        # modèles thinking au lieu de la rattraper après coup. Transmis à
+        # transformers UNIQUEMENT si fourni → zéro impact sur les autres appels,
+        # notamment la génération de code où répéter `return`, une indentation
+        # ou un mot-clé est parfaitement légitime.
+        if kwargs.get("repetition_penalty") is not None:
+            gen_kwargs["repetition_penalty"] = float(kwargs["repetition_penalty"])
+        if kwargs.get("no_repeat_ngram_size") is not None:
+            gen_kwargs["no_repeat_ngram_size"] = int(kwargs["no_repeat_ngram_size"])
         # Optional early stop on literal strings (e.g. the agent stops right
         # after its first complete tool_call instead of rambling to EOS or the
         # token cap — a direct per-step latency win). Uses a StoppingCriteria

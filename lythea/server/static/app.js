@@ -2093,9 +2093,19 @@
       case "synthesis":
         // Le compte-rendu de Taëlys va UNIQUEMENT dans le fil de chat,
         // plus dans la carte Tâches (qui reste un journal d'actions).
-        if ((data.text || "").trim()) appendMessage("assistant", data.text);
+        // Une SEULE synthèse par run : un éventuel doublon (deux chemins de
+        // fin, ré-émission, re-render) ne crée pas deux bulles identiques.
+        if ((data.text || "").trim() && !refs._synthShown) {
+          refs._synthShown = true;
+          appendMessage("assistant", data.text);
+        }
         break;
       case "tool_call": {
+        // 'finish' n'est PAS un outil affichable : c'est le signal de fin,
+        // dont la réponse part déjà comme synthèse (et le statut passe à
+        // « Terminé »). On ne le rend pas dans le journal d'actions → aucun
+        // risque de doublon de la réponse finale, quel que soit son contenu.
+        if (data.name === "finish") break;
         const a = data.arguments || {};
         const arg = a.path || a.command || a.name || a.module || "";
         const sig = (data.name || "") + "|" + String(arg);

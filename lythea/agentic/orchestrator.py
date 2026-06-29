@@ -50,6 +50,22 @@ _MAX_STEPS = 8
 # anti-boucle reste géré par ProgressTracker (progress.should_stop, palier
 # STOP) — généraliste, tous types de tâche — donc plus d'étapes n'autorise
 # PAS une boucle infinie.
+
+# Raisonnement <think> sous chaque étape. Les modèles thinking (Qwen3…)
+# produisent un long monologue, souvent en anglais. Par cohérence avec le
+# chat — qui ne l'affiche pas — on le MASQUE : 0 = caché (le frontend teste
+# `if (data.thought)`, donc aucun bloc n'est rendu quand c'est vide). Mettre
+# > 0 pour réafficher un aperçu de N caractères (transparence du raisonnement).
+_REASONING_PREVIEW = 0
+
+# Anti-répétition pour les générations de TEXTE pur de l'agent (synthèse,
+# critique), passé via _gen(prose=True). repetition_penalty décourage la
+# dérive ; no_repeat_ngram_size interdit mécaniquement toute séquence de N
+# tokens de se répéter → fin des synthèses qui bouclent, traité À LA SOURCE.
+# Jamais appliqué au code (où ces pénalités casseraient des répétitions
+# légitimes). _collapse_runaway ne reste plus qu'en ultime filet.
+_TEXT_REPETITION_PENALTY = 1.2
+_TEXT_NO_REPEAT_NGRAM = 4
 _CTX_CLIP = 1200  # chars of prior-step context carried forward
 
 # Plan steps that are pure *process* (no file produced) and that the agent
@@ -835,7 +851,7 @@ class AgentOrchestrator:
                 steps.append(title)
         return steps[:_MAX_STEPS]
 
-    async def _gen(self, worker, prompt: str, **kw) -> str:
+    async def _gen(self, worker, prompt: str, *, prose: bool = False, **kw) -> str:
         # Agent generations default to a LOW temperature (near-deterministic —
         # code/agentic work benefits from consistency, not creativity) and a
         # larger token budget (so a module/test isn't truncated mid-file). Both
@@ -844,6 +860,14 @@ class AgentOrchestrator:
         kw.setdefault("temperature", float(getattr(s, "agent_temperature", 0.3)))
         kw.setdefault("max_new_tokens",
                       int(getattr(s, "agent_max_new_tokens", 1024)))
+        # prose=True : génération de TEXTE pur (synthèse, critique). On bride la
+        # répétition À LA SOURCE (cf. _TEXT_*), au lieu de la rattraper après
+        # coup. Jamais pour les générations qui portent du code (write_file…),
+        # où répéter un mot-clé ou une indentation est légitime. Restent
+        # overridables par appel.
+        if prose:
+            kw.setdefault("repetition_penalty", _TEXT_REPETITION_PENALTY)
+            kw.setdefault("no_repeat_ngram_size", _TEXT_NO_REPEAT_NGRAM)
         loop = asyncio.get_event_loop()
         return await loop.run_in_executor(None, lambda: worker.generate(prompt, **kw))
 
@@ -1502,7 +1526,7 @@ class AgentOrchestrator:
             # Budget serré : un verdict « OK » ou « CORRIGER : 1-3 actions »
             # tient largement. 400 laissait un modèle hybride (Qwen3…) remplir
             # l'espace en répétant « Réponse : OK » jusqu'à la troncature.
-            out = await self._gen(worker, prompt, max_new_tokens=200)
+            out = await self._gen(worker, prompt, max_new_tokens=200, prose=True)
         except Exception:  # noqa: BLE001
             log.exception("critic review failed")
             return True, ""   # fail-open: never block a finish on critic error
@@ -2527,7 +2551,13 @@ class AgentOrchestrator:
             reasoning = (think_txt or pensee).strip()
             reasoning = _strip_tool_syntax(reasoning)   # masque les balises résiduelles
             reasoning = _collapse_runaway(reasoning)    # coupe un raisonnement qui boucle
-            reasoning = re.sub(r"\n{3,}", "\n\n", reasoning)[:1200]
+            reasoning = re.sub(r"\n{3,}", "\n\n", reasoning).strip()
+            # Aperçu court (cf. _REASONING_PREVIEW) : coupe nette au mot + ellipse.
+            if _REASONING_PREVIEW <= 0:
+                reasoning = ""
+            elif len(reasoning) > _REASONING_PREVIEW:
+                reasoning = (reasoning[:_REASONING_PREVIEW].rsplit(" ", 1)[0]
+                             .rstrip(" .,;:") + " …")
 
             # Explicit completion via the 'finish' tool. Validated with the
             # SAME grounding as a prose finish: build needs green tests,
@@ -3272,7 +3302,7 @@ class AgentOrchestrator:
                         f"Tâche : {task}\nFichiers : {paths}\n{verdict}\n"
                         "Rédige UNE synthèse brève (3-5 phrases) de ce qui a été "
                         "accompli et de l'état des tests. Pas de code."
-                    ))
+                    ), prose=True)
                 else:
                     # analyze/answer: ground the fallback on what was actually
                     # read/run, never on test verdicts (there are none).
@@ -3282,7 +3312,7 @@ class AgentOrchestrator:
                         "texte clair, d'après ce qui précède. SANS tool_call, "
                         "sans code. Si l'information manque, dis-le."
                         "\nTaëlys :"
-                    ))
+                    ), prose=True)
                     synth = _strip_think(synth)
                     synth = re.sub(r"<tool_call>.*?</tool_call>", "", synth,
                                    flags=re.S).strip()
@@ -3767,7 +3797,8 @@ class AgentOrchestrator:
                     "les créer (ils existent). Pas de code, une seule synthèse, "
                     "sans question ni formule de politesse."
                 )
-                synth = await self._gen(core, synth_prompt, max_new_tokens=384)
+                synth = await self._gen(core, synth_prompt, max_new_tokens=384,
+                                        prose=True)
                 synth = _clean_synthesis(synth)
             except Exception:  # noqa: BLE001
                 log.exception("agent synthesis failed")
