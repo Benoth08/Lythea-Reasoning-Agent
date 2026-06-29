@@ -43,7 +43,7 @@ from lythea.external.gemini_client import (
 )
 
 
-VALID_KEY = ""  # 39 chars, valid pattern
+VALID_KEY = "AIzaSyABCDEFGHIJKLMNOPQRSTUVWXYZ1234567"  # 39 chars, valid pattern
 
 
 # ── Helpers ────────────────────────────────────────────────────────────

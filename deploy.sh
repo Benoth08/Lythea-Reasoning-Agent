@@ -137,7 +137,9 @@ done
 if python3 -c "import transformers" 2>/dev/null; then
     ok "transformers $(python3 -c 'import transformers;print(transformers.__version__)' 2>/dev/null) + cœur ML installés (run.py n'aura rien à faire au boot)"
 else
-    warn "transformers non importable après install — vérifier le réseau / l'index pip."
+    warn "transformers non importable à cette étape — cause réelle ci-dessous :"
+    python3 -c "import transformers" 2>&1 | sed 's/^/        /' | tail -6
+    info "→ en général sans gravité : run.py réinstalle les deps au boot et se ré-exécute (Protection 7)."
 fi
 
 
@@ -158,7 +160,8 @@ else
         info "  Le modèle de re-rank se télécharge au 1ᵉʳ usage (BAAI/bge-reranker-v2-m3, ~600 Mo ;"
         info "  pour un modèle léger : export LYTHEA_CROSS_ENCODER_MODEL=cross-encoder/ms-marco-MiniLM-L-6-v2)."
     else
-        warn "sentence-transformers non importable — Lythéa garde le re-rank cosine en repli (sans incidence sur le reste)."
+        warn "sentence-transformers non importable — re-rank cosine en repli (sans incidence). Détail :"
+        python3 -c "import sentence_transformers" 2>&1 | sed 's/^/        /' | tail -4
     fi
 fi
 
@@ -173,7 +176,8 @@ else
     if python3 -c "import bitsandbytes" 2>/dev/null; then
         ok "bitsandbytes installé (modèles fp16 chargeables 4-bit sur 24 Go)"
     else
-        warn "bitsandbytes non importable — les modèles bnb-4bit retomberont en bf16."
+        warn "bitsandbytes non importable — modèles bnb-4bit en bf16. Détail :"
+        python3 -c "import bitsandbytes" 2>&1 | sed 's/^/        /' | tail -4
     fi
 fi
 

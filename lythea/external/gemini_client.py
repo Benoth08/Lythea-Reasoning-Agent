@@ -114,7 +114,7 @@ def mask_api_key(key: str | None) -> str:
     Only the last 4 characters are shown. ``None`` and short strings
     return ``"<missing>"`` and ``"<invalid>"`` respectively.
 
-    >>> mask_api_key("XXXXXXXX")
+    >>> mask_api_key("AIzaSyABCDEFGHIJKLMNOPQRSTUVWXYZ1234567")
     '...4567'
     >>> mask_api_key(None)
     '<missing>'
