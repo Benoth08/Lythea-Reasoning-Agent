@@ -443,6 +443,28 @@ _SOLICIT_RE = re.compile(
 )
 
 
+# Certains modèles (souvent « coder », non-thinking) terminent leur synthèse
+# puis REDÉMARRENT un raisonnement en clair (chain-of-thought), parfois dans une
+# autre langue : « Okay, let me try to figure out… », « The user wants… ». Ce
+# n'est ni du <think> balisé ni du code : on tronque dès la première amorce de
+# méta-raisonnement. Ciblé sur des tournures de CoT (jamais du contenu d'une
+# synthèse) → no-op sur une synthèse normale, même rédigée en anglais.
+_REASONING_RESTART_RE = re.compile(
+    r"(?is)\b(?:"
+    r"okay,?\s+(?:so\s+)?let'?s?\s+(?:me\s+)?(?:try|think|figure|start|see|break|begin)"
+    r"|alright,?\s+(?:so\s+)?let'?s?\s+(?:me\s+)?(?:try|think|figure|start|see|begin)"
+    r"|let'?s?\s+me\s+(?:try\s+to\s+figure|think\s+about|start\s+by|break\s+this|figure\s+out)"
+    r"|the\s+user\s+(?:wants?|is\s+asking|needs?|wrote|said|provided)"
+    r"|first,?\s+i\s+(?:need|should|have|must|'ll|'d)\b"
+    r"|i\s+need\s+to\s+(?:remember|figure|think|recall|start|first|understand)"
+    r"|so\s+the\s+steps?\s+(?:would|are|is|here)"
+    r"|wait,?\s+but\s+(?:in|the|if|how|what|maybe)"
+    r"|hmm,?\s+(?:first|let|so|the\s|i\s|wait|maybe|okay)"
+    r"|how\s+to\s+approach\s+this"
+    r").*$"
+)
+
+
 def _collapse_runaway(text: str, min_words: int = 4, max_repeats: int = 1) -> str:
     """Coupe une répétition dégénérée (le modèle boucle sur les mêmes
     phrases). Conservateur : ne traite QUE les segments « substantiels »
@@ -466,15 +488,24 @@ def _collapse_runaway(text: str, min_words: int = 4, max_repeats: int = 1) -> st
 
 
 def _clean_synthesis(text: str) -> str:
-    """Nettoie la synthèse finale : leak <think>, déballage de code, répétition
-    en boucle, sollicitations. No-op sur une synthèse saine (texte sans code,
-    sans <think>, sans répétition → rien retiré)."""
+    """Nettoie la synthèse finale : leak <think>, déballage de code, redémarrage
+    de raisonnement (CoT, parfois en anglais), glitch CJK isolé, répétition en
+    boucle, sollicitations. No-op sur une synthèse saine (texte cohérent, sans
+    <think>, sans code, sans CoT, sans répétition → rien retiré)."""
     text = _strip_think(text or "")          # raisonnement <think> (modèles thinking)
     # La synthèse est du TEXTE (le code vit dans les fichiers, jamais ici). Les
     # modèles « coder » tendent à déballer du code + de l'auto-revue après leur
     # réponse : on tronque dès le premier bloc ``` → jette le code ET les
     # commentaires qui suivent. Une synthèse propre n'a pas de ``` (no-op).
     text = text.split("```", 1)[0]
+    # Puis on tronque un éventuel REDÉMARRAGE de raisonnement en clair après la
+    # synthèse (« Okay, let me try… », « The user wants… ») — fréquent sur les
+    # modèles non-thinking, indétectable par <think> (non balisé).
+    text = _REASONING_RESTART_RE.sub("", text)
+    # Glitch multilingue : caractères CJK isolés AU MILIEU de mots latins
+    # (« cas测试és »). Retirés seulement s'ils sont entourés de latin → un texte
+    # réellement en CJK (caractères entre eux) n'est jamais touché.
+    text = re.sub(r"(?<=[A-Za-zÀ-ÿ])[\u4e00-\u9fff]+(?=[A-Za-zÀ-ÿ])", "", text)
     text = _SOLICIT_RE.sub("", text)
     text = _collapse_runaway(text)           # boucle de phrases répétées
     text = re.sub(r"[ \t]{2,}", " ", text)
