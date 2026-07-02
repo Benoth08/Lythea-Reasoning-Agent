@@ -17,6 +17,7 @@ from lythea.config import (
     SALIENCE_MIN_LENGTH,
     SALIENCE_MIN_SCORE,
     SALIENCE_REDUNDANCY_THRESHOLD,
+    SALIENCE_ENERGY_WEIGHT,
 )
 
 log = logging.getLogger("lythea.memory.salience")
@@ -27,6 +28,13 @@ NOISE_WORDS = frozenset({
     "ah", "oh", "eh", "bah", "bof", "ouais", "nope", "yep", "cool",
     "d'accord", "okay",
 })
+
+# V5.9 — assouplissement N3 par nouveauté épisodique (MHN energy).
+# Un échange textuellement redondant mais épisodiquement très nouveau
+# (le contexte a changé) n'est pas un vrai doublon → on le repêche, SAUF
+# s'il s'agit d'un quasi-duplicata parfait.
+_N3_RELAX_MIN_ENERGY = 0.5   # energy MHN au-dessus de laquelle on assouplit N3
+_N3_RELAX_MAX_SIM = 0.95     # similarité au-dessus de laquelle un doublon reste rejeté
 
 
 @dataclass
@@ -60,11 +68,18 @@ class SalienceFilter:
         min_score: float = SALIENCE_MIN_SCORE,
         redundancy_threshold: float = SALIENCE_REDUNDANCY_THRESHOLD,
         cache_size: int = 20,
+        mhn: object | None = None,
+        energy_weight: float = SALIENCE_ENERGY_WEIGHT,
     ) -> None:
         self.min_length = min_length
         self.min_score = min_score
         self.redundancy_threshold = redundancy_threshold
         self._embed_cache: deque[torch.Tensor] = deque(maxlen=cache_size)
+        # V5.9 — signal de nouveauté épisodique (borné [0,1]) fourni par le
+        # MHN. Optionnel : mhn=None → boost/assouplissement désactivés, la
+        # cascade se comporte exactement comme avant (rétrocompatible).
+        self.mhn = mhn
+        self.energy_weight = energy_weight
 
     # ── N1: rule-based rejection ───────────────────────────────────────
 
@@ -164,8 +179,16 @@ class SalienceFilter:
 
     # ── N3: redundancy check ───────────────────────────────────────────
 
-    def _n3_redundancy(self, embedding: torch.Tensor | None) -> bool:
+    def _n3_redundancy(
+        self, embedding: torch.Tensor | None, energy: float | None = None
+    ) -> bool:
         """Check if the message is redundant with recent cache.
+
+        V5.9 — episodic relaxation: a message that is textually redundant
+        (cosine above the threshold) but episodically very novel (high MHN
+        ``energy``) means the *context* has changed, so it is not a true
+        duplicate and is kept — UNLESS it is a near-perfect duplicate
+        (similarity above ``_N3_RELAX_MAX_SIM``), which stays rejected.
 
         Returns
         -------
@@ -176,12 +199,26 @@ class SalienceFilter:
             return False
 
         emb = embedding.view(1, -1)
+        max_cos = 0.0
         for cached in self._embed_cache:
             c = cached.view(1, -1)
             cos = torch.nn.functional.cosine_similarity(emb, c).item()
-            if cos > self.redundancy_threshold:
-                return True
-        return False
+            if cos > max_cos:
+                max_cos = cos
+
+        if max_cos <= self.redundancy_threshold:
+            return False
+
+        # Redundant by text. Relax only if episodically novel AND not a
+        # near-perfect duplicate.
+        if (
+            energy is not None
+            and energy >= _N3_RELAX_MIN_ENERGY
+            and max_cos <= _N3_RELAX_MAX_SIM
+        ):
+            return False
+
+        return True
 
     # ── Full cascade ───────────────────────────────────────────────────
 
@@ -200,18 +237,31 @@ class SalienceFilter:
         SalienceResult
             Whether the message passes and its score.
         """
-        # N1
+        # N1 — souverain : le bruit est rejeté quel que soit le reste.
         n1 = self._n1_rules(text)
         if n1 is not None:
             return n1
 
-        # N2
+        # V5.9 — signal de nouveauté épisodique (MHN), borné [0,1]. Absent
+        # (mhn=None) → comportement historique strictement inchangé.
+        energy: float | None = None
+        if self.mhn is not None and embedding is not None:
+            try:
+                energy = float(self.mhn.energy(embedding))
+            except Exception as exc:  # pragma: no cover — defensive
+                log.warning("MHN energy for salience failed: %s", exc)
+                energy = None
+
+        # N2 — score heuristique + boost épisodique continu. Ce n'est jamais
+        # un override : N1 a déjà écarté le bruit en amont.
         score = self._n2_heuristic(text)
+        if energy is not None:
+            score = min(score + self.energy_weight * energy, 1.0)
         if score < self.min_score:
             return SalienceResult(False, score, "N2", f"score {score:.2f} < {self.min_score}")
 
-        # N3
-        if self._n3_redundancy(embedding):
+        # N3 — redondance, assouplie par la nouveauté épisodique.
+        if self._n3_redundancy(embedding, energy):
             return SalienceResult(False, score, "N3", "redundant")
 
         # Passed — update cache

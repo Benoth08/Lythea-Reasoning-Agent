@@ -372,6 +372,8 @@ class StoragePhase:
                     "epistemic": epistemic,
                     "surprise": surprise.get("global", 0),
                     "atoms_count": atoms_count,
+                    "created_ts": time.time(),
+                    "last_access_ts": time.time(),
                 }],
             )
             return True

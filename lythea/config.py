@@ -513,6 +513,12 @@ MHN_BETA = _settings.mhn_beta
 SALIENCE_MIN_LENGTH = _settings.salience_min_length
 SALIENCE_MIN_SCORE = _settings.salience_min_score
 SALIENCE_REDUNDANCY_THRESHOLD = _settings.salience_redundancy_threshold
+SALIENCE_ENERGY_WEIGHT = _settings.salience_energy_weight
+
+# Rétention Chroma (V5.9) : durée (jours) au-delà de laquelle un échange
+# "exchange" non consulté est purgé au deep sleep. Les "consolidated" sont
+# permanents (jamais purgés).
+RETENTION_TTL_DAYS = getattr(_settings, "retention_ttl_days", 30)
 
 # Entropy
 ENTROPY_THRESHOLD = _settings.entropy_threshold

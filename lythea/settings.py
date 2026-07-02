@@ -54,6 +54,10 @@ class LytheaSettings(BaseSettings):
     salience_min_length: int = Field(default=8, ge=1)
     salience_min_score: float = Field(default=0.25, ge=0.0, le=1.0)
     salience_redundancy_threshold: float = Field(default=0.92, ge=0.0, le=1.0)
+    # V5.9 — poids du boost de nouveauté épisodique (MHN energy) dans le
+    # score N2 de saillance. energy et score N2 sont tous deux dans [0,1],
+    # donc pas de calibration : 0.35 boost sans dominer. 0 = désactivé.
+    salience_energy_weight: float = Field(default=0.35, ge=0.0, le=2.0)
 
     # ── Entropy / doubt detection ──────────────────────────────────────
     # Entropy gate for the doubt index. Output mean-entropy is divided

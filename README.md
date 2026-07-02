@@ -84,7 +84,7 @@ des tokens. Lythéa a besoin de **l'intérieur** du modèle :
 
 - les **hooks** `register_forward_hook` sur les couches et la tête de
   langage, pour capturer le flux résiduel qui alimente la mémoire
-  (SDM / MHN / KG) ;
+  (MHN / KG) ;
 - l'**injection de vecteurs de steering** dans les activations en cours de
   génération ;
 - les **hidden states** complets (`output_hidden_states`) pour la
@@ -107,7 +107,6 @@ neuroscience :
 
 | Système | Fichier | Rôle |
 |---|---|---|
-| **SDM** (Sparse Distributed Memory) | `sdm.py` | mémoire associative dense, écriture/rappel par adresse approximative |
 | **MHN** (Modern Hopfield Network) | `mhn.py` | rappel par énergie, motif → motif complet |
 | **KG** (Knowledge Graph) | `kg.py` | entités & relations (accents, RapidFuzz, index trigrammes) |
 | **Mémoire procédurale** | `procedural.py` | « comment faire » réutilisable |
@@ -130,8 +129,8 @@ Le cœur de Lythéa. Chaque message traverse un **cycle cognitif** dont les
 | Étape | Module | Inspiration | Rôle |
 |---|---|---|---|
 | **Encodage** | `encoding.py` | cortex entorhinal | texte → représentations numériques (sparsification, *novelty gating*) ; ne stocke rien, *prépare* les signaux |
-| **Prédiction** | `predictive_coding.py` | codage prédictif (Friston) | prédit l'embedding du prochain message ; écart faible (surprise basse) → mode *low-power* (réponse rapide, sans RAG) |
-| **Écriture** | `storage.py` | hippocampe (CA3) | écriture SDM token-par-token pondérée par la surprise ; promotion d'entités au KG |
+| **Prédiction** | `predictive_coding.py` | codage prédictif (Friston) | prédit l'embedding du prochain message (EMA) ; écart faible → *low-power* (réponse rapide, sans RAG), écart fort → force le RAG. **Désactivé par défaut** (`enable_predictive_coding` + `pc_apply_gating`) |
+| **Écriture** | `storage.py` | hippocampe (CA3) | promotion d'entités au KG ; archivage des échanges (MHN + Chroma) |
 | **Rappel** | `retrieval.py` | CA3, *pattern completion* | réassemble le contexte RAG par 3 voies parallèles : identité (KG) + MHN + Chroma |
 | **Génération** | `generation.py` | — | nettoyage de sortie, prompt de raisonnement en deux passes |
 | **Surprise** | `surprise.py` | ripples + dopamine (CA1) | surprise composite (4 signaux de nouveauté) + calibration du doute ; pilote la force d'écriture mémoire |
@@ -231,7 +230,7 @@ objets) et nettement moins d'hallucinations qu'une description « en un coup ».
 lythea/
 ├── cognition/        # pipeline cognitif (26 modules) : encoding, storage,
 │                     #   surprise, retrieval, consolidation, generation, cascade…
-├── memory/           # mémoire biomimétique : SDM, MHN, KG, procédurale,
+├── memory/           # mémoire biomimétique : MHN, KG, procédurale,
 │                     #   working memory, état cognitif, saillance
 ├── agentic/          # agent Taëlys : orchestrator, workers, verifier, router,
 │                     #   blackboard, skills, sandbox, blockage, progress
@@ -248,7 +247,7 @@ lythea/
 l'API publique de `hippocampe.py` (l'orchestrateur cognitif) est stable.
 
 **Flux d'un message** (simplifié) : encodage en latents + extraction
-d'entités → calcul de saillance/surprise → écriture mémoire (SDM/KG, archivage
+d'entités → calcul de saillance/surprise → écriture mémoire (KG, archivage
 MHN/Chroma) → récupération du contexte (identité KG + RAG) → génération locale
 (ou cascade) → consolidation différée.
 
@@ -424,7 +423,7 @@ card (température, top_p, top_k, min_p, etc.). On peut override en runtime
 
 Pipeline **draft-then-refine** : Gemini Flash produit un brouillon riche, et
 le **modèle local le synthétise** en quelques phrases dans la voix de Taëlys,
-tout en fournissant les latents qui alimentent SDM / MHN / KG.
+tout en fournissant les latents qui alimentent MHN / KG.
 
 ### Pourquoi pas Gemini seul ?
 
@@ -524,7 +523,7 @@ autre discussion **ne perturbe pas** une mission en cours ailleurs.
 |---|---|
 | `GET /api/boot/status` | progression du boot |
 | `GET /api/health` | état général |
-| `GET /api/memory/status` | compteurs SDM / MHN / KG / Chroma |
+| `GET /api/memory/status` | compteurs MHN / KG / Chroma |
 | `GET /api/memory/kg/entities` | entités KG (`last_seen`, mentions, confiance) |
 | `GET /api/cache/stats` | hit rate des caches |
 | `GET /api/config/cascade` | état de la cascade (clé **toujours masquée**) |

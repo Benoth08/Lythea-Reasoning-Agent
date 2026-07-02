@@ -143,7 +143,7 @@ class Hippocampe:
         self.entity_extractor = entity_extractor or EntityExtractor()
         self.web_policy = web_policy or WebTriggerPolicy()
         self.web_agent = WebAgent()
-        self.salience = SalienceFilter()
+        self.salience = SalienceFilter(mhn=self.mhn)
         self.retriever = retriever
         self.captioner = ImageCaptioner()
 
@@ -3237,7 +3237,32 @@ class Hippocampe:
 
     def deep_sleep(self) -> str:
         """Manual deep consolidation — delegates to :class:`ConsolidationPhase`."""
+        self._retention_gc()
         return self.consolidation_phase.deep_sleep()
+
+    def _retention_gc(self) -> None:
+        """V5.9 — Purge les échanges ``exchange`` non consultés depuis
+        ``RETENTION_TTL_DAYS`` jours. Les ``consolidated`` sont épargnés
+        (permanents). Best-effort : n'interrompt jamais le deep sleep."""
+        if self.chroma is None:
+            return
+        try:
+            from lythea.config import RETENTION_TTL_DAYS
+            cutoff = time.time() - RETENTION_TTL_DAYS * 86400.0
+            got = self.chroma.get(where={"type": "exchange"}, include=["metadatas"])
+            ids = got.get("ids", []) or []
+            metas = got.get("metadatas", []) or []
+            stale = []
+            for _i, _m in zip(ids, metas):
+                _m = _m or {}
+                ref = _m.get("last_access_ts", _m.get("created_ts", _m.get("ts", 0)))
+                if ref and ref < cutoff:
+                    stale.append(_i)
+            if stale:
+                self.chroma.delete(ids=stale)
+                log.info("Retention GC: purged %d stale 'exchange' chunks", len(stale))
+        except Exception as exc:
+            log.warning("Retention GC failed: %s", exc)
 
     # ── Memory status ──────────────────────────────────────────────────
 

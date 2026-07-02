@@ -449,6 +449,26 @@ class RetrievalPhase:
             log.warning("Chroma hybrid search failed: %s", exc)
             return
 
+        # V5.9 — rétention : un souvenir rappelé se protège de l'oubli.
+        # On rafraîchit last_access_ts sur les chunks remontés (best-effort,
+        # ne bloque jamais le rappel ; la métadonnée complète est renvoyée
+        # pour ne rien écraser).
+        try:
+            _now = time.time()
+            _ids, _metas = [], []
+            for _r in results:
+                _rid = _r.get("id")
+                if not _rid:
+                    continue
+                _m = dict(_r.get("metadata") or {})
+                _m["last_access_ts"] = _now
+                _ids.append(_rid)
+                _metas.append(_m)
+            if _ids:
+                self.hybrid_retriever.collection.update(ids=_ids, metadatas=_metas)
+        except Exception as exc:  # pragma: no cover — best-effort
+            log.warning("last_access refresh failed: %s", exc)
+
         # V5.2 — CRAG evaluation. LLM passed via the retriever's stored
         # reference if available ; falling back to evaluate-only if not.
         llm_for_rewrite = getattr(self, "_crag_llm", None)

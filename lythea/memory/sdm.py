@@ -2,6 +2,17 @@
 
 Working memory using bipolar hyper-vectors (±1), Hebbian activation
 tracking, and model-aware projection matrices.
+
+STATUS (V5.9) — REDUNDANT / NOT WIRED TO ANY OUTPUT.
+The only consumer of this memory is the ``predictive`` surprise signal
+(``surprise.py``), which feeds ``s_global``, which in turn only scales
+this memory's *own* write strength. The loop is therefore closed: the SDM
+produces a signal used to write to the SDM, with no downstream effect on
+retrieval, generation, or consolidation. The novelty role it could play
+is already covered by the MHN (``energy``, bounded [0, 1]) — now wired
+into the salience cascade. Kept in place for a possible future
+re-purposing; CANDIDATE FOR REMOVAL if none emerges. Do not re-wire
+without reading this note.
 """
 from __future__ import annotations
 
